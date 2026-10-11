@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>AQUARYA — Uno squaletto che nuota nell'aria</title>
+  
+  <meta name="description" content="AQUARYA è un'esperienza 3D interattiva poetica e giocosa: uno squaletto procedurale che nuota nell'aria. Afferralo, trascinalo e guardalo tornare." />
+  <meta name="theme-color" content="#DCEEFA" />
+  <meta property="og:title" content="AQUARYA — Lo squaletto che nuota nell'aria" />
+  <meta property="og:description" content="Esperienza 3D cartoon procedurale con Three.js e fisica interattiva." />
+  <meta property="og:type" content="website" />
+  
+  <!-- Favicon emoji squalo -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦈</text></svg>" />
+  
+  <!-- Google Fonts: Fraunces & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- Canvas 3D -->
+  <canvas id="webgl-canvas" aria-label="Squaletto 3D interattivo che nuota nell'aria"></canvas>
+
+  <!-- Schermata di caricamento elegante -->
+  <div id="loader" class="loader">
+    <div class="loader-inner">
+      <h1 class="loader-title">AQUARYA.</h1>
+      <p class="loader-sub">Risveglio dello squaletto...</p>
+      <div class="loader-bar"><div class="loader-progress" id="loader-progress"></div></div>
+    </div>
+  </div>
+
+  <!-- UI Overlay -->
+  <main class="ui-layer" id="ui-layer">
+    <!-- Header editoriale in alto a sinistra -->
+    <header class="editorial-header">
+      <h1 class="brand-title">AQUARYA.</h1>
+      <p class="brand-tagline">
+        Uno squaletto che nuota nell'aria.<br />
+        Prendilo, lascialo andare, guardalo tornare.
+      </p>
+    </header>
+
+    <!-- Hint di interazione in basso a sinistra -->
+    <aside class="interaction-hint" id="interaction-hint" aria-live="polite">
+      <span class="hint-icon">✦</span>
+      <span class="hint-text">Trascina lo squalo. Lascialo andare.</span>
+    </aside>
+
+    <!-- Controlli in alto a destra -->
+    <section class="controls-panel" id="controls-panel" aria-label="Pannello di controllo">
+      <button class="panel-toggle" id="panel-toggle" aria-expanded="true" aria-controls="controls-content" title="Comprimi / Espandi controlli">
+        <span class="toggle-icon">⚙</span>
+        <span class="toggle-label">STUDIO</span>
+      </button>
+
+      <div class="controls-content" id="controls-content">
+        <!-- Palette colori -->
+        <div class="control-group">
+          <label class="group-label">PALETTE</label>
+          <div class="swatches-row" role="radiogroup" aria-label="Colore dello squalo">
+            <button class="swatch-btn active" data-palette="ocean" title="Oceano Blu" aria-checked="true" role="radio" style="--swatch-color: #5B8DEF;"></button>
+            <button class="swatch-btn" data-palette="coral" title="Corallo Rosa" aria-checked="false" role="radio" style="--swatch-color: #F48B8B;"></button>
+            <button class="swatch-btn" data-palette="mint" title="Menta Verde" aria-checked="false" role="radio" style="--swatch-color: #56C596;"></button>
+          </div>
+        </div>
+
+        <!-- Slider Velocità -->
+        <div class="control-group">
+          <div class="slider-header">
+            <label for="speed-slider" class="group-label">VELOCITÀ</label>
+            <span class="slider-val" id="speed-val">1.0×</span>
+          </div>
+          <input type="range" id="speed-slider" min="0.3" max="2.2" step="0.1" value="1.0" />
+        </div>
+
+        <!-- Slider Morbidezza (stiffness) -->
+        <div class="control-group">
+          <div class="slider-header">
+            <label for="softness-slider" class="group-label">MORBIDEZZA</label>
+            <span class="slider-val" id="softness-val">Normal</span>
+          </div>
+          <input type="range" id="softness-slider" min="0.4" max="1.8" step="0.1" value="1.0" />
+        </div>
+
+        <!-- Slider Dimensione -->
+        <div class="control-group">
+          <div class="slider-header">
+            <label for="scale-slider" class="group-label">DIMENSIONE</label>
+            <span class="slider-val" id="scale-val">1.0×</span>
+          </div>
+          <input type="range" id="scale-slider" min="0.7" max="1.5" step="0.1" value="1.0" />
+        </div>
+
+        <!-- Pulsanti Azione -->
+        <div class="control-actions">
+          <button class="action-btn" id="btn-burst" title="Scodata improvvisa">Scodata</button>
+          <button class="action-btn" id="btn-pause" title="Pausa / Riprendi">Pausa</button>
+          <button class="action-btn" id="btn-reset" title="Ripristina posizione">Reset</button>
+        </div>
+
+        <!-- Toggle Scheletro -->
+        <div class="control-toggle-row">
+          <label for="skeleton-toggle" class="toggle-checkbox-label">Mostra scheletro</label>
+          <input type="checkbox" id="skeleton-toggle" class="toggle-checkbox" />
+        </div>
+      </div>
+    </section>
+
+    <!-- Telemetria scientifica in basso a destra -->
+    <footer class="telemetry-box" id="telemetry-box" aria-label="Telemetria in tempo reale">
+      <div class="telemetry-item">
+        <span class="telemetry-label">VEL</span>
+        <span class="telemetry-value" id="tel-speed">24.3</span>
+        <span class="telemetry-unit">cm/s</span>
+      </div>
+      <div class="telemetry-divider">/</div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">FREQ</span>
+        <span class="telemetry-value" id="tel-freq">1.20</span>
+        <span class="telemetry-unit">Hz</span>
+      </div>
+      <div class="telemetry-divider">/</div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">ENG</span>
+        <span class="telemetry-value" id="tel-renderer">WebGL</span>
+      </div>
+    </footer>
+  </main>
+
+  <!-- Fallback se WebGL non è supportato -->
+  <div id="no-webgl" class="no-webgl-notice" style="display: none;">
+    <h2>WebGL non disponibile</h2>
+    <p>Il tuo browser non supporta l'accelerazione grafica necessaria per visualizzare AQUARYA.</p>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
