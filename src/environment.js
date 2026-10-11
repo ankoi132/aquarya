@@ -33,18 +33,23 @@ export class Environment {
   }
 
   initLights() {
-    // Luce emisferica calda/cielo per un'illuminazione soffusa senza neri
-    this.hemiLight = new THREE.HemisphereLight(0xD6ECFA, 0xFFEFE2, 0.95);
+    // Luce emisferica calda/cielo per un'illuminazione soffusa senza zone scure
+    this.hemiLight = new THREE.HemisphereLight(0xE2F2FF, 0xFFEFE2, 1.35);
     this.scene.add(this.hemiLight);
 
-    // Luce principale diffusa dal cielo (alto-sinistra-fronte)
-    this.dirLight = new THREE.DirectionalLight(0xFFFFFF, 1.25);
+    // Luce principale diffusa (alto-sinistra-fronte)
+    this.dirLight = new THREE.DirectionalLight(0xFFFFFF, 1.35);
     this.dirLight.position.set(4, 7, 5);
     this.dirLight.castShadow = true;
     this.scene.add(this.dirLight);
 
-    // Luce di rim / controluce soffice (azzurro-chiaro dal retro per evidenziare i bordi)
-    this.rimLight = new THREE.DirectionalLight(0xBEE4F8, 0.75);
+    // Luce di riempimento frontale morbida
+    this.fillLight = new THREE.DirectionalLight(0xFFF9F2, 0.55);
+    this.fillLight.position.set(0, 2, 7);
+    this.scene.add(this.fillLight);
+
+    // Luce di rim / controluce (azzurro-chiaro dal retro per contorni luminosi)
+    this.rimLight = new THREE.DirectionalLight(0xBEE6FC, 0.85);
     this.rimLight.position.set(-4, -2, -5);
     this.scene.add(this.rimLight);
   }

@@ -1,41 +1,38 @@
 import * as THREE from 'three';
 
 /**
- * AQUARYA - Procedural 3D Cartoon Shark
- * Modello 100% procedurale di qualità da portfolio / Pixar toy-like:
- * - Corpo a siluro paffuto deformato lungo la spina dorsale a 12 nodi
- * - Shading toon con countershading (dorso cel-shading azzurro/pastello, pancia crema caldo)
- * - Inverted hull outline pulito blu notte (#182333)
- * - Occhi grandi, lucidi ed espressivi con pupilla 3D, riflesso, bagliore e battito palpebre
- * - Bocca con sorriso largo e dolce, dentini bianchi carini ed espressione dinamica al drag
- * - Guance con blush rosa soft
- * - Pinne beveled perfettamente orientate (dorsale verticale, pettorali ad ala rivolte all'indietro con flutter, caudale a mezzaluna)
+ * AQUARYA - Stylized 3D Aerodynamic Shark
+ * Design maturo, elegante e sofisticato (qualità da portfolio Awwwards / Pixar studio):
+ * - Sagoma a siluro idrodinamica slanciata (lunghezza 3.8, sezione 0.50, rapporto ~4.8:1)
+ * - Muso scolpito affusolato, fessure branchiali stilizzate, cresta dorsale sottile
+ * - Pinne ad ala swept-back da predatore (pettorali affilate a hydrofoil, dorsale raked, coda eterocerca)
+ * - Occhi a mandorla perfettamente incassati nella testa (non sporgenti), sguardo intelligente e attento
+ * - Mascella stilizzata con dentellatura sottile pulita a filo della pancia
+ * - Countershading oceanico con transizione morbida sulla linea laterale
+ * - Outline sottilissimo blu notte per risaltare la silhouette
  */
 
 export const PALETTES = {
   ocean: {
-    name: 'Oceano Blu',
-    primary: new THREE.Color(0x5B8DEF),
-    accent: new THREE.Color(0x3B6DCD),
-    belly: new THREE.Color(0xFFF9EE),
-    blush: new THREE.Color(0xFFA0B4),
-    outline: new THREE.Color(0x1B263B)
+    name: 'Oceano Celeste',
+    primary: new THREE.Color(0x568DEF),   // Dorso blu-ardesia/azzurro vivo (#5B8DEF)
+    accent: new THREE.Color(0x3B6EC2),    // Finitura pinne
+    belly: new THREE.Color(0xFFFEF8),     // Pancia bianco-crema calda
+    outline: new THREE.Color(0x1B3456)    // Contorno notte elegante
   },
   coral: {
-    name: 'Corallo Rosa',
-    primary: new THREE.Color(0xF48B8B),
-    accent: new THREE.Color(0xE06363),
-    belly: new THREE.Color(0xFFFAF2),
-    blush: new THREE.Color(0xFF6B8B),
-    outline: new THREE.Color(0x381922)
+    name: 'Corallo Solare',
+    primary: new THREE.Color(0xEE6E65),   // Corallo pastello luminoso
+    accent: new THREE.Color(0xBF4B43),
+    belly: new THREE.Color(0xFFF9F4),
+    outline: new THREE.Color(0x421917)
   },
   mint: {
-    name: 'Menta Verde',
-    primary: new THREE.Color(0x56C596),
-    accent: new THREE.Color(0x3AA377),
-    belly: new THREE.Color(0xF7FFF8),
-    blush: new THREE.Color(0xFFA6BE),
-    outline: new THREE.Color(0x143324)
+    name: 'Menta Giada',
+    primary: new THREE.Color(0x43B692),   // Smeraldo / menta salvia fresco
+    accent: new THREE.Color(0x288768),
+    belly: new THREE.Color(0xF2FAF6),
+    outline: new THREE.Color(0x123628)
   }
 };
 
@@ -44,9 +41,10 @@ function createToonGradientMap() {
   canvas.width = 4;
   canvas.height = 1;
   const ctx = canvas.getContext('2d');
-  const colors = ['#667788', '#99AABB', '#DDEEFF', '#FFFFFF'];
-  colors.forEach((c, i) => {
-    ctx.fillStyle = c;
+  // Gradient steps neutri luminosi per cel-shading morbido (stile Pixar/Nintendo)
+  const steps = [140, 185, 230, 255];
+  steps.forEach((val, i) => {
+    ctx.fillStyle = `rgb(${val}, ${val}, ${val})`;
     ctx.fillRect(i, 0, 1, 1);
   });
   const texture = new THREE.CanvasTexture(canvas);
@@ -69,51 +67,62 @@ export class Shark {
     this.toonGradientMap = createToonGradientMap();
 
     // Espressione & Blink
-    this.expression = 0; // 0 = calmo, 1 = sorpreso/trascinato
+    this.expression = 0;
     this.targetExpression = 0;
-    this.blinkTimer = 2.5;
+    this.blinkTimer = 3.5;
     this.isBlinking = false;
     this.blinkProgress = 0;
 
-    // Puntamento sguardo
+    // Sguardo
     this.eyeTarget = new THREE.Vector3(0, 0, 10);
     this.currentEyeLook = new THREE.Vector2(0, 0);
 
-    // Scala bilanciata (1/3 viewport desktop)
-    this.baseScale = 0.85;
+    // Scala complessiva per proporzioni da portfolio (1/3 larghezza desktop)
+    this.baseScale = 0.92;
     this.group.scale.setScalar(this.baseScale);
 
-    // Costruzione corpo e mesh
-    this.slices = 24;
-    this.radial = 28;
+    this.slices = 28;
+    this.radial = 32;
+
     this.buildBodyMesh();
     this.buildFins();
     this.buildFace();
     this.buildSkeletonDebug();
   }
 
+  /**
+   * Profilo idrodinamico slanciato e potente (u da 0 a 1)
+   */
   getBodyProfile(u) {
     let rx, ry, cy;
+
     if (u < 0.22) {
-      // Muso paffuto e morbido
+      // Muso affusolato aerodinamico
       const t = u / 0.22;
       const s = Math.sin((t * Math.PI) / 2);
-      rx = 0.94 * Math.pow(s, 0.45);
-      ry = 0.80 * Math.pow(s, 0.45);
-      cy = 0.05 * (1 - t);
+      rx = 0.50 * Math.pow(s, 0.72);
+      ry = 0.38 * Math.pow(s, 0.72);
+      cy = 0.03 * (1 - t);
     } else if (u < 0.55) {
-      // Torace e pancia morbida
+      // Torace possente idrodinamico
       const t = (u - 0.22) / 0.33;
-      rx = THREE.MathUtils.lerp(0.94, 0.74, t);
-      ry = THREE.MathUtils.lerp(0.80, 0.65, t);
-      cy = -0.04 * Math.sin(t * Math.PI);
+      rx = THREE.MathUtils.lerp(0.50, 0.44, t);
+      ry = THREE.MathUtils.lerp(0.38, 0.42, t);
+      cy = 0.01 * (1 - t);
+    } else if (u < 0.85) {
+      // Addome e peduncolo caudale
+      const t = (u - 0.55) / 0.30;
+      rx = THREE.MathUtils.lerp(0.44, 0.16, Math.pow(t, 0.85));
+      ry = THREE.MathUtils.lerp(0.42, 0.20, Math.pow(t, 0.85));
+      cy = 0.0;
     } else {
-      // Coda affusolata
-      const t = (u - 0.55) / 0.45;
-      rx = THREE.MathUtils.lerp(0.74, 0.10, Math.pow(t, 0.75));
-      ry = THREE.MathUtils.lerp(0.65, 0.12, Math.pow(t, 0.75));
-      cy = 0.04 * t;
+      // Attacco coda sottile
+      const t = (u - 0.85) / 0.15;
+      rx = THREE.MathUtils.lerp(0.16, 0.05, Math.pow(t, 0.9));
+      ry = THREE.MathUtils.lerp(0.20, 0.08, Math.pow(t, 0.9));
+      cy = 0.0;
     }
+
     return { rx, ry, cy };
   }
 
@@ -136,8 +145,8 @@ export class Shark {
         uvs[idx * 2 + 0] = v;
         uvs[idx * 2 + 1] = u;
 
-        // Countershading: Dorso blu/colorato, pancia crema caldo
-        const dorsalFactor = THREE.MathUtils.smoothstep(sinT, -0.22, 0.20);
+        // Countershading naturale: dorso scuro, pancia chiara
+        const dorsalFactor = THREE.MathUtils.smoothstep(sinT, -0.15, 0.15);
         const col = new THREE.Color().lerpColors(this.palette.belly, this.palette.primary, dorsalFactor);
         colors[idx * 3 + 0] = col.r;
         colors[idx * 3 + 1] = col.g;
@@ -155,8 +164,9 @@ export class Shark {
         const b = row1 + j + 1;
         const c = row2 + j + 1;
         const d = row2 + j;
-        indices.push(a, b, d);
-        indices.push(b, c, d);
+        // Winding orario per normali orientate correttamente all'esterno
+        indices.push(a, d, b);
+        indices.push(b, d, c);
       }
     }
 
@@ -176,7 +186,7 @@ export class Shark {
     this.bodyMesh.castShadow = true;
     this.group.add(this.bodyMesh);
 
-    // Inverted hull outline
+    // Outline inverted hull ultra-sottile e preciso
     const outlinePositions = new Float32Array(totalVerts * 3);
     const outlineUVs = new Float32Array(totalVerts * 2);
     outlineUVs.set(uvs);
@@ -206,129 +216,163 @@ export class Shark {
       side: THREE.BackSide
     });
 
-    // 1. PINNA DORSALE (disegnata nel piano Z-Y)
+    // 1. PINNA DORSALE: Sagoma fiera e slanciata con bordo raked elegante
+    // Shape definita su piano XY: +X = verso muso (+Z 3D), -X = verso coda (-Z 3D), +Y = altezza (+Y 3D)
     const dShape = new THREE.Shape();
-    dShape.moveTo(0.35, 0.0);
-    dShape.quadraticCurveTo(0.16, 0.52, -0.05, 0.90);
-    dShape.quadraticCurveTo(-0.14, 0.98, -0.22, 0.88);
-    dShape.quadraticCurveTo(-0.16, 0.42, -0.40, 0.0);
-    dShape.lineTo(0.35, 0.0);
+    dShape.moveTo(0.24, 0.0);
+    dShape.quadraticCurveTo(0.12, 0.35, -0.06, 0.65); // leading edge swept back
+    dShape.quadraticCurveTo(-0.10, 0.69, -0.14, 0.63); // apice morbido
+    dShape.quadraticCurveTo(-0.11, 0.28, -0.22, 0.0); // trailing notch
+    dShape.lineTo(0.24, 0.0);
 
     const dGeo = new THREE.ExtrudeGeometry(dShape, {
-      steps: 1, depth: 0.08, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03, bevelSegments: 3
+      steps: 1, depth: 0.038, bevelEnabled: true, bevelThickness: 0.014, bevelSize: 0.014, bevelSegments: 3
     });
-    dGeo.center();
-    dGeo.rotateY(Math.PI / 2); // lunghezza lungo Z, spessore lungo X
+    dGeo.translate(0, 0, -0.019); // centra lo spessore
+    dGeo.rotateY(-Math.PI / 2);    // allinea +X a +Z (avanti), -X a -Z (dietro), +Y a +Y (alto)
+    dGeo.computeVertexNormals();
 
     this.dorsalFin = new THREE.Mesh(dGeo, this.dorsalMat);
     const dOutline = new THREE.Mesh(dGeo, this.finOutlineMat);
-    dOutline.scale.set(1.06, 1.06, 1.06);
+    dOutline.scale.set(1.04, 1.04, 1.04);
     this.dorsalFin.add(dOutline);
     this.group.add(this.dorsalFin);
 
-    // 2. PINNA CAUDALE (CODA a mezzaluna arrotondata Pixar)
+    // 2. PINNA CAUDALE (CODA a mezzaluna eterocerca aerodinamica)
     const tShape = new THREE.Shape();
-    tShape.moveTo(0.0, 0.0);
-    tShape.quadraticCurveTo(-0.25, 0.38, -0.55, 0.78);
-    tShape.quadraticCurveTo(-0.62, 0.85, -0.58, 0.75);
-    tShape.quadraticCurveTo(-0.38, 0.32, -0.16, 0.04);
-    tShape.quadraticCurveTo(-0.32, -0.26, -0.46, -0.55);
-    tShape.quadraticCurveTo(-0.52, -0.62, -0.42, -0.56);
-    tShape.quadraticCurveTo(-0.12, -0.22, 0.0, 0.0);
+    tShape.moveTo(0.12, 0.0);
+    tShape.quadraticCurveTo(0.02, 0.30, -0.36, 0.72); // lobo superiore dominante
+    tShape.quadraticCurveTo(-0.43, 0.77, -0.40, 0.68);
+    tShape.quadraticCurveTo(-0.25, 0.30, -0.10, 0.04); // incisura caudale
+    tShape.quadraticCurveTo(-0.22, -0.20, -0.32, -0.42); // lobo inferiore
+    tShape.quadraticCurveTo(-0.36, -0.47, -0.30, -0.42);
+    tShape.quadraticCurveTo(-0.10, -0.14, 0.12, 0.0);
 
     const tGeo = new THREE.ExtrudeGeometry(tShape, {
-      steps: 1, depth: 0.07, bevelEnabled: true, bevelThickness: 0.028, bevelSize: 0.028, bevelSegments: 3
+      steps: 1, depth: 0.036, bevelEnabled: true, bevelThickness: 0.014, bevelSize: 0.014, bevelSegments: 3
     });
-    tGeo.center();
-    tGeo.rotateY(Math.PI / 2);
+    tGeo.translate(0, 0, -0.018);
+    tGeo.rotateY(-Math.PI / 2);
+    tGeo.computeVertexNormals();
 
     this.caudalFin = new THREE.Mesh(tGeo, this.dorsalMat);
-    this.caudalFin.scale.set(1.12, 1.12, 1.12);
     const tOutline = new THREE.Mesh(tGeo, this.finOutlineMat);
-    tOutline.scale.set(1.06, 1.06, 1.06);
+    tOutline.scale.set(1.04, 1.04, 1.04);
     this.caudalFin.add(tOutline);
     this.group.add(this.caudalFin);
 
-    // 3. PINNE PETTORALI (ad ala morbida, curvate all'indietro lungo -Z)
-    const pShape = new THREE.Shape();
-    pShape.moveTo(0.0, 0.12);
-    pShape.quadraticCurveTo(0.42, 0.15, 1.05, 0.38);  // punta allungata
-    pShape.quadraticCurveTo(1.16, 0.46, 1.08, 0.55);  // punta morbida
-    pShape.quadraticCurveTo(0.55, 0.40, 0.0, 0.28);   // bordo posteriore
-    pShape.lineTo(0.0, 0.12);
+    // 3. PINNE PETTORALI (Ali hydrofoil swept-back da predatore)
+    // Geometria ala Destra (+Side):
+    const pShapeRight = new THREE.Shape();
+    pShapeRight.moveTo(0.0, 0.06);
+    pShapeRight.quadraticCurveTo(0.28, 0.02, 0.68, -0.24); // leading edge swept-back
+    pShapeRight.quadraticCurveTo(0.74, -0.29, 0.68, -0.34); // punta affilata
+    pShapeRight.quadraticCurveTo(0.32, -0.24, 0.0, -0.14); // trailing edge
+    pShapeRight.lineTo(0.0, 0.06);
 
-    const pGeo = new THREE.ExtrudeGeometry(pShape, {
-      steps: 1, depth: 0.06, bevelEnabled: true, bevelThickness: 0.024, bevelSize: 0.024, bevelSegments: 3
-    });
-    // Ruota attorno a X di -90 gradi: proietta il sweep lungo -Z (indietro verso la coda!)
-    pGeo.rotateX(-Math.PI / 2);
-    pGeo.rotateZ(-0.15); // leggera inclinazione verso il basso
+    const extrudeOpts = {
+      steps: 1, depth: 0.032, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 3
+    };
 
-    // Pinna Sinistra (lato +Side)
+    const pGeoRight = new THREE.ExtrudeGeometry(pShapeRight, extrudeOpts);
+    pGeoRight.translate(0, 0, -0.016);
+    pGeoRight.rotateX(-Math.PI / 2);
+    pGeoRight.rotateZ(-0.14); // inclinazione diedro verso il basso
+    pGeoRight.computeVertexNormals();
+
+    // Pinna Sinistra (-Side): forma simmetrica nativa verso sinistra
+    const pShapeLeft = new THREE.Shape();
+    pShapeLeft.moveTo(0.0, 0.06);
+    pShapeLeft.quadraticCurveTo(-0.28, 0.02, -0.68, -0.24); // leading edge verso -X e -Z
+    pShapeLeft.quadraticCurveTo(-0.74, -0.29, -0.68, -0.34);
+    pShapeLeft.quadraticCurveTo(-0.32, -0.24, 0.0, -0.14);
+    pShapeLeft.lineTo(0.0, 0.06);
+
+    const pGeoLeft = new THREE.ExtrudeGeometry(pShapeLeft, extrudeOpts);
+    pGeoLeft.translate(0, 0, -0.016);
+    pGeoLeft.rotateX(-Math.PI / 2);
+    pGeoLeft.rotateZ(0.14); // simmetrico diedro verso il basso
+    pGeoLeft.computeVertexNormals();
+
+    // Pinna Destra (+Side)
+    this.rightPectGroup = new THREE.Group();
+    const rMesh = new THREE.Mesh(pGeoRight, this.dorsalMat);
+    const rOut = new THREE.Mesh(pGeoRight, this.finOutlineMat);
+    rOut.scale.set(1.04, 1.04, 1.04);
+    rMesh.add(rOut);
+    this.rightPectGroup.add(rMesh);
+    this.group.add(this.rightPectGroup);
+
+    // Pinna Sinistra (-Side)
     this.leftPectGroup = new THREE.Group();
-    const lMesh = new THREE.Mesh(pGeo, this.dorsalMat);
-    const lOut = new THREE.Mesh(pGeo, this.finOutlineMat);
-    lOut.scale.set(1.06, 1.06, 1.06);
+    const lMesh = new THREE.Mesh(pGeoLeft, this.dorsalMat);
+    const lOut = new THREE.Mesh(pGeoLeft, this.finOutlineMat);
+    lOut.scale.set(1.04, 1.04, 1.04);
     lMesh.add(lOut);
     this.leftPectGroup.add(lMesh);
     this.group.add(this.leftPectGroup);
 
-    // Pinna Destra (specchiata su X)
-    this.rightPectGroup = new THREE.Group();
-    const rMesh = new THREE.Mesh(pGeo, this.dorsalMat);
-    rMesh.scale.set(-1, 1, 1);
-    const rOut = new THREE.Mesh(pGeo, this.finOutlineMat);
-    rOut.scale.set(1.06, 1.06, 1.06);
-    rMesh.add(rOut);
-    this.rightPectGroup.add(rMesh);
-    this.group.add(this.rightPectGroup);
+    // 4. PINNA DORSALE SECONDARIA / ADIPOSA (sul nodo 10)
+    const miniDShape = new THREE.Shape();
+    miniDShape.moveTo(0.08, 0.0);
+    miniDShape.quadraticCurveTo(0.03, 0.12, -0.04, 0.18);
+    miniDShape.quadraticCurveTo(-0.06, 0.20, -0.08, 0.16);
+    miniDShape.quadraticCurveTo(-0.05, 0.06, -0.08, 0.0);
+    miniDShape.lineTo(0.08, 0.0);
+
+    const miniDGeo = new THREE.ExtrudeGeometry(miniDShape, {
+      steps: 1, depth: 0.024, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 2
+    });
+    miniDGeo.translate(0, 0, -0.012);
+    miniDGeo.rotateY(-Math.PI / 2);
+    miniDGeo.computeVertexNormals();
+
+    this.miniDorsal = new THREE.Mesh(miniDGeo, this.dorsalMat);
+    this.group.add(this.miniDorsal);
   }
 
   buildFace() {
     this.faceGroup = new THREE.Group();
     this.group.add(this.faceGroup);
 
-    const eyeWhiteMat = new THREE.MeshToonMaterial({
-      color: 0xFFFFFF,
-      gradientMap: this.toonGradientMap
-    });
-    const pupilMat = new THREE.MeshBasicMaterial({ color: 0x141824 });
-    const highlightMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+    const eyeBaseMat = new THREE.MeshBasicMaterial({ color: 0x111620 });
+    const pupilMat = new THREE.MeshBasicMaterial({ color: 0x060910 });
+    const irisGlintMat = new THREE.MeshBasicMaterial({ color: 0xEDF6FF });
+    const toothMat = new THREE.MeshBasicMaterial({ color: 0xFCFEFF });
+    const jawMat = new THREE.MeshBasicMaterial({ color: 0x1A2535 });
 
-    const eyeRadius = 0.22;
-    const eyeGeo = new THREE.SphereGeometry(eyeRadius, 24, 24);
+    // 1. OCCHI A MANDORLA INCASSATI NELLA TESTA (Design elegante e vivo)
+    const eyeRadius = 0.092;
+    const eyeGeo = new THREE.SphereGeometry(eyeRadius, 18, 18);
+    eyeGeo.scale(1.20, 0.85, 0.90);
 
-    const createEye = (isLeft) => {
+    const createEye = () => {
       const eyeRoot = new THREE.Group();
-      
-      const sclera = new THREE.Mesh(eyeGeo, eyeWhiteMat);
-      eyeRoot.add(sclera);
+
+      const eyeBase = new THREE.Mesh(eyeGeo, eyeBaseMat);
+      eyeRoot.add(eyeBase);
 
       const irisGroup = new THREE.Group();
-      
-      // Pupilla nera 3D bombata e frontale
-      const pupilGeo = new THREE.SphereGeometry(0.13, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.45);
+      irisGroup.position.set(0, 0, eyeRadius * 0.70);
+
+      // Pupilla a fessura/ovale elegante
+      const pupilGeo = new THREE.SphereGeometry(0.062, 12, 12, 0, Math.PI * 2, 0, Math.PI * 0.45);
+      pupilGeo.scale(0.85, 1.20, 1.0);
       const pupil = new THREE.Mesh(pupilGeo, pupilMat);
-      pupil.position.set(0, 0, eyeRadius * 0.88);
       pupil.rotation.x = Math.PI / 2;
       irisGroup.add(pupil);
 
-      // Riflesso principale bianco brillante
-      const hi1Geo = new THREE.SphereGeometry(0.048, 12, 12);
-      const hi1 = new THREE.Mesh(hi1Geo, highlightMat);
-      hi1.position.set(0.048, 0.052, eyeRadius * 0.96);
-      irisGroup.add(hi1);
-
-      // Bagliore secondario
-      const hi2Geo = new THREE.SphereGeometry(0.024, 10, 10);
-      const hi2 = new THREE.Mesh(hi2Geo, highlightMat);
-      hi2.position.set(-0.042, -0.042, eyeRadius * 0.96);
-      irisGroup.add(hi2);
+      // Riflesso di luce
+      const glintGeo = new THREE.SphereGeometry(0.022, 8, 8);
+      const glint = new THREE.Mesh(glintGeo, irisGlintMat);
+      glint.position.set(0.026, 0.026, 0.04);
+      irisGroup.add(glint);
 
       eyeRoot.add(irisGroup);
 
-      // Palpebra per il battito
-      const lidGeo = new THREE.SphereGeometry(eyeRadius * 1.06, 20, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+      // Palpebra superiore
+      const lidGeo = new THREE.SphereGeometry(eyeRadius * 1.04, 16, 14, 0, Math.PI * 2, 0, Math.PI / 2);
+      lidGeo.scale(1.22, 0.87, 0.92);
       this.lidMat = new THREE.MeshToonMaterial({
         color: this.palette.primary,
         gradientMap: this.toonGradientMap
@@ -338,59 +382,56 @@ export class Shark {
       eyeRoot.add(eyelid);
 
       const eOutline = new THREE.Mesh(eyeGeo, this.finOutlineMat);
-      eOutline.scale.set(1.06, 1.06, 1.06);
+      eOutline.scale.set(1.04, 1.04, 1.04);
       eyeRoot.add(eOutline);
 
       return { eyeRoot, irisGroup, eyelid };
     };
 
-    this.leftEye = createEye(true);
-    this.faceGroup.add(this.leftEye.eyeRoot);
-
-    this.rightEye = createEye(false);
+    this.rightEye = createEye();
     this.faceGroup.add(this.rightEye.eyeRoot);
 
-    // Guance blush rosa soft
-    const blushGeo = new THREE.CircleGeometry(0.16, 20);
-    this.blushMat = new THREE.MeshBasicMaterial({
-      color: this.palette.blush,
+    this.leftEye = createEye();
+    this.faceGroup.add(this.leftEye.eyeRoot);
+
+    // 2. GUANCE ROSA SOFT (Blush delicato per dare calore e tenerezza)
+    const blushGeo = new THREE.CircleGeometry(0.065, 16);
+    const blushMat = new THREE.MeshBasicMaterial({
+      color: 0xFFA090,
       transparent: true,
-      opacity: 0.65,
-      depthWrite: false
+      opacity: 0.35,
+      side: THREE.DoubleSide
     });
+    this.rightCheek = new THREE.Mesh(blushGeo, blushMat);
+    this.leftCheek = new THREE.Mesh(blushGeo, blushMat);
+    this.faceGroup.add(this.rightCheek);
+    this.faceGroup.add(this.leftCheek);
 
-    this.leftBlush = new THREE.Mesh(blushGeo, this.blushMat);
-    this.faceGroup.add(this.leftBlush);
-
-    this.rightBlush = new THREE.Mesh(blushGeo, this.blushMat);
-    this.faceGroup.add(this.rightBlush);
-
-    // Bocca: Sorriso largo e dolce con 2 dentini bianchi
+    // 3. MASCELLA VENTRALE A FILO CON DENTELLATURA SOTTILE
     this.mouthGroup = new THREE.Group();
-    const smileCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-0.35, 0.05, 0.0),
-      new THREE.Vector3(-0.16, -0.05, 0.08),
-      new THREE.Vector3(0.0, -0.07, 0.10),
-      new THREE.Vector3(0.16, -0.05, 0.08),
-      new THREE.Vector3(0.35, 0.05, 0.0)
+
+    const jawCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.14, 0.01, -0.04),
+      new THREE.Vector3(-0.08, -0.01, 0.04),
+      new THREE.Vector3(0.0, -0.018, 0.06),
+      new THREE.Vector3(0.08, -0.01, 0.04),
+      new THREE.Vector3(0.14, 0.01, -0.04)
     ]);
-    const smileGeo = new THREE.TubeGeometry(smileCurve, 20, 0.035, 8, false);
-    const smileMat = new THREE.MeshBasicMaterial({ color: 0x1A2536 });
-    this.smileMesh = new THREE.Mesh(smileGeo, smileMat);
-    this.mouthGroup.add(this.smileMesh);
+    const jawGeo = new THREE.TubeGeometry(jawCurve, 16, 0.014, 6, false);
+    this.jawMesh = new THREE.Mesh(jawGeo, jawMat);
+    this.mouthGroup.add(this.jawMesh);
 
-    // Dentini carini
-    const toothGeo = new THREE.ConeGeometry(0.042, 0.07, 12);
+    // 2 piccoli dentini triangolari puliti
+    const toothGeo = new THREE.ConeGeometry(0.018, 0.035, 6);
     toothGeo.rotateX(Math.PI);
-    const toothMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
 
-    const tooth1 = new THREE.Mesh(toothGeo, toothMat);
-    tooth1.position.set(-0.11, -0.01, 0.08);
-    this.mouthGroup.add(tooth1);
+    const t1 = new THREE.Mesh(toothGeo, toothMat);
+    t1.position.set(-0.04, -0.012, 0.045);
+    this.mouthGroup.add(t1);
 
-    const tooth2 = new THREE.Mesh(toothGeo, toothMat);
-    tooth2.position.set(0.11, -0.01, 0.08);
-    this.mouthGroup.add(tooth2);
+    const t2 = new THREE.Mesh(toothGeo, toothMat);
+    t2.position.set(0.04, -0.012, 0.045);
+    this.mouthGroup.add(t2);
 
     this.faceGroup.add(this.mouthGroup);
   }
@@ -401,10 +442,10 @@ export class Shark {
     this.debugGroup.visible = false;
 
     this.debugSpheres = [];
-    const sphereGeo = new THREE.SphereGeometry(0.08, 12, 12);
-    const sphereMat = new THREE.MeshBasicMaterial({ color: 0xFF3366, wireframe: true });
+    const sphereGeo = new THREE.SphereGeometry(0.05, 10, 10);
+    const sphereMat = new THREE.MeshBasicMaterial({ color: 0x3388FF, wireframe: true });
 
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 14; i++) {
       const sp = new THREE.Mesh(sphereGeo, sphereMat);
       this.debugSpheres.push(sp);
       this.debugGroup.add(sp);
@@ -428,19 +469,17 @@ export class Shark {
     this.eyeTarget.copy(targetWorldVec);
   }
 
-  update(delta, currentSpeed = 1.6, spineNodes = []) {
-    // 1. Transizione fluida colori palette
+  update(delta, currentSpeed = 1.8, spineNodes = []) {
+    // 1. Transizione colori palette
     if (this.paletteLerp < 1.0) {
       this.paletteLerp = Math.min(1.0, this.paletteLerp + delta * 3.0);
       this.palette.primary.lerp(this.targetPalette.primary, 0.15);
       this.palette.belly.lerp(this.targetPalette.belly, 0.15);
-      this.palette.blush.lerp(this.targetPalette.blush, 0.15);
       this.palette.outline.lerp(this.targetPalette.outline, 0.15);
 
       this.dorsalMat.color.copy(this.palette.primary);
       this.outlineMaterial.color.copy(this.palette.outline);
       this.finOutlineMat.color.copy(this.palette.outline);
-      this.blushMat.color.copy(this.palette.blush);
       if (this.lidMat) this.lidMat.color.copy(this.palette.primary);
 
       const cols = this.bodyGeo.attributes.color.array;
@@ -449,7 +488,7 @@ export class Shark {
         for (let j = 0; j <= this.radial; j++) {
           const theta = (j / this.radial) * Math.PI * 2;
           const sinT = Math.sin(theta);
-          const dorsalFactor = THREE.MathUtils.smoothstep(sinT, -0.22, 0.20);
+          const dorsalFactor = THREE.MathUtils.smoothstep(sinT, -0.15, 0.15);
           const col = new THREE.Color().lerpColors(this.palette.belly, this.palette.primary, dorsalFactor);
           cols[idx * 3 + 0] = col.r;
           cols[idx * 3 + 1] = col.g;
@@ -460,12 +499,12 @@ export class Shark {
       this.bodyGeo.attributes.color.needsUpdate = true;
     }
 
-    // 2. Transizione espressione (sorriso vs sorpresa)
+    // 2. Transizione espressione
     this.expression = THREE.MathUtils.lerp(this.expression, this.targetExpression, delta * 8.0);
     if (this.mouthGroup) {
       this.mouthGroup.scale.set(
-        1.0 - this.expression * 0.15,
-        1.0 + this.expression * 0.9,
+        1.0 + this.expression * 0.15,
+        1.0 + this.expression * 0.5,
         1.0
       );
     }
@@ -475,11 +514,11 @@ export class Shark {
     if (this.blinkTimer <= 0) {
       this.isBlinking = true;
       this.blinkProgress = 0;
-      this.blinkTimer = 3.0 + Math.random() * 3.0;
+      this.blinkTimer = 3.5 + Math.random() * 3.0;
     }
 
     if (this.isBlinking) {
-      this.blinkProgress += delta * 7.5;
+      this.blinkProgress += delta * 8.0;
       if (this.blinkProgress >= Math.PI) {
         this.isBlinking = false;
         this.blinkProgress = 0;
@@ -489,21 +528,21 @@ export class Shark {
       if (this.rightEye) this.rightEye.eyelid.rotation.x = lidAngle;
     }
 
-    // 4. Flutter pinne pettorali
-    if (this.leftPectGroup && this.rightPectGroup) {
-      const flutterFreq = 2.6 * Math.max(0.6, currentSpeed * 0.7);
-      const flutterAngle = Math.sin(Date.now() * 0.001 * flutterFreq) * 0.14;
-      this.leftPectGroup.rotation.z = flutterAngle;
-      this.rightPectGroup.rotation.z = -flutterAngle;
-    }
-
-    // 5. Deformazione procedurale del corpo lungo la spina
-    if (spineNodes && spineNodes.length >= 12) {
+    // 4. Deformazione procedurale continua lungo la spina dorsale
+    if (spineNodes && spineNodes.length >= 14) {
       this.deformBodyToSpine(spineNodes);
       this.alignFinsAndFaceToSpine(spineNodes);
 
+      // Flutter idrodinamico delle pinne pettorali
+      if (this.leftPectGroup && this.rightPectGroup) {
+        const flutterFreq = 2.4 * Math.max(0.6, currentSpeed * 0.65);
+        const flutterAngle = Math.sin(Date.now() * 0.001 * flutterFreq) * 0.08;
+        this.rightPectGroup.rotateZ(flutterAngle);
+        this.leftPectGroup.rotateZ(-flutterAngle);
+      }
+
       if (this.debugGroup.visible) {
-        for (let i = 0; i < 12; i++) {
+        for (let i = 0; i < 14; i++) {
           this.debugSpheres[i].position.copy(spineNodes[i].position);
         }
       }
@@ -533,7 +572,7 @@ export class Shark {
     const outArr = this.outlineGeo.attributes.position.array;
 
     let idx = 0;
-    const outlineOffset = 0.038;
+    const outlineOffset = 0.020; // Outline ultra-sottile e preciso
 
     for (let i = 0; i <= this.slices; i++) {
       const u = i / this.slices;
@@ -545,10 +584,11 @@ export class Shark {
         const cosT = Math.cos(theta);
         const sinT = Math.sin(theta);
 
-        const yMul = sinT < 0 ? 0.92 : 1.05;
+        // Sezione idrodinamica: leggermente affilata sulla cresta dorsale
+        const crestFactor = sinT > 0 ? (1.0 + Math.pow(sinT, 2.0) * 0.06) : 0.95;
 
         const vx = cosT * rx;
-        const vy = (sinT * ry + cy) * yMul;
+        const vy = (sinT * ry + cy) * crestFactor;
 
         const px = pos.x + side.x * vx + up.x * vy;
         const py = pos.y + side.y * vx + up.y * vy;
@@ -577,54 +617,62 @@ export class Shark {
   }
 
   alignFinsAndFaceToSpine(spineNodes) {
-    // 1. PINNA DORSALE (sul nodo 4 - dorso medio)
-    const nDorsal = spineNodes[4];
-    this.dorsalFin.position.copy(nDorsal.position).addScaledVector(nDorsal.up, 0.70);
+    // 1. PINNA DORSALE (sul nodo 5 - terzo anteriore del dorso)
+    const nDorsal = spineNodes[5];
+    this.dorsalFin.position.copy(nDorsal.position).addScaledVector(nDorsal.up, 0.38);
     this.dorsalFin.quaternion.copy(nDorsal.quaternion);
 
-    // 2. PINNE PETTORALI (sul nodo 2 - torace)
-    const nPect = spineNodes[2];
-    this.leftPectGroup.position.copy(nPect.position)
-      .addScaledVector(nPect.side, 0.76)
-      .addScaledVector(nPect.up, -0.16);
-    this.leftPectGroup.quaternion.copy(nPect.quaternion);
-
+    // 2. PINNE PETTORALI (sul nodo 3 - torace, montate simmetriche a filo pelle)
+    const nPect = spineNodes[3];
+    // Ala Destra (+Side)
     this.rightPectGroup.position.copy(nPect.position)
-      .addScaledVector(nPect.side, -0.76)
-      .addScaledVector(nPect.up, -0.16);
+      .addScaledVector(nPect.side, 0.44)
+      .addScaledVector(nPect.up, -0.08);
     this.rightPectGroup.quaternion.copy(nPect.quaternion);
 
-    // 3. PINNA CAUDALE (sull'ultimo nodo 11 - punta coda)
-    const nTail = spineNodes[11];
+    // Ala Sinistra (-Side)
+    this.leftPectGroup.position.copy(nPect.position)
+      .addScaledVector(nPect.side, -0.44)
+      .addScaledVector(nPect.up, -0.08);
+    this.leftPectGroup.quaternion.copy(nPect.quaternion);
+
+    // 3. PINNA ADIPOSA / DORSALE SECONDARIA (sul nodo 10)
+    const nMiniD = spineNodes[10];
+    this.miniDorsal.position.copy(nMiniD.position).addScaledVector(nMiniD.up, 0.16);
+    this.miniDorsal.quaternion.copy(nMiniD.quaternion);
+
+    // 4. PINNA CAUDALE (sull'ultimo nodo 13 - punta coda)
+    const nTail = spineNodes[13];
     this.caudalFin.position.copy(nTail.position);
     this.caudalFin.quaternion.copy(nTail.quaternion);
 
-    // 4. VISO, OCCHI, BLUSH, BOCCA (sul nodo 0 e 1 - testa)
-    const nHead = spineNodes[0];
-    const nEye = spineNodes[1];
+    // 5. OCCHI INCASSATI NELLA TESTA (sul nodo 2, profilo laterale del cranio)
+    const nHead = spineNodes[2];
 
-    const eyeDistX = 0.65;
-    const eyeDistY = 0.28;
-    const eyeDistZ = 0.12;
+    const eyeDistX = 0.42; // a filo della superficie laterale del cranio
+    const eyeDistY = 0.06;
+    const eyeDistZ = 0.10;
 
-    this.leftEye.eyeRoot.position.copy(nEye.position)
-      .addScaledVector(nEye.side, eyeDistX)
-      .addScaledVector(nEye.up, eyeDistY)
-      .addScaledVector(nEye.forward, eyeDistZ);
-    this.leftEye.eyeRoot.quaternion.copy(nEye.quaternion);
-    this.leftEye.eyeRoot.rotateY(0.42);
+    // Occhio Destro (+Side)
+    this.rightEye.eyeRoot.position.copy(nHead.position)
+      .addScaledVector(nHead.side, eyeDistX)
+      .addScaledVector(nHead.up, eyeDistY)
+      .addScaledVector(nHead.forward, eyeDistZ);
+    this.rightEye.eyeRoot.quaternion.copy(nHead.quaternion);
+    this.rightEye.eyeRoot.rotateY(0.32);
 
-    this.rightEye.eyeRoot.position.copy(nEye.position)
-      .addScaledVector(nEye.side, -eyeDistX)
-      .addScaledVector(nEye.up, eyeDistY)
-      .addScaledVector(nEye.forward, eyeDistZ);
-    this.rightEye.eyeRoot.quaternion.copy(nEye.quaternion);
-    this.rightEye.eyeRoot.rotateY(-0.42);
+    // Occhio Sinistro (-Side)
+    this.leftEye.eyeRoot.position.copy(nHead.position)
+      .addScaledVector(nHead.side, -eyeDistX)
+      .addScaledVector(nHead.up, eyeDistY)
+      .addScaledVector(nHead.forward, eyeDistZ);
+    this.leftEye.eyeRoot.quaternion.copy(nHead.quaternion);
+    this.leftEye.eyeRoot.rotateY(-0.32);
 
-    // Orientamento pupille verso il puntatore
+    // Sguardo orientato con precisione
     const toTarget = new THREE.Vector3().subVectors(this.eyeTarget, nHead.position).normalize();
-    const lookX = THREE.MathUtils.clamp(toTarget.x * 0.55, -0.30, 0.30);
-    const lookY = THREE.MathUtils.clamp(toTarget.y * 0.55, -0.25, 0.25);
+    const lookX = THREE.MathUtils.clamp(toTarget.x * 0.35, -0.18, 0.18);
+    const lookY = THREE.MathUtils.clamp(toTarget.y * 0.35, -0.14, 0.14);
     this.currentEyeLook.x = THREE.MathUtils.lerp(this.currentEyeLook.x, lookX, 0.15);
     this.currentEyeLook.y = THREE.MathUtils.lerp(this.currentEyeLook.y, lookY, 0.15);
 
@@ -633,24 +681,29 @@ export class Shark {
     this.rightEye.irisGroup.rotation.y = this.currentEyeLook.x;
     this.rightEye.irisGroup.rotation.x = -this.currentEyeLook.y;
 
-    // Blush
-    this.leftBlush.position.copy(nEye.position)
-      .addScaledVector(nEye.side, 0.70)
-      .addScaledVector(nEye.up, 0.04);
-    this.leftBlush.quaternion.copy(nEye.quaternion);
-    this.leftBlush.rotateY(Math.PI / 2 - 0.22);
+    // Guance soft (blush delicato)
+    if (this.rightCheek && this.leftCheek) {
+      this.rightCheek.position.copy(nHead.position)
+        .addScaledVector(nHead.side, eyeDistX + 0.02)
+        .addScaledVector(nHead.up, -0.04)
+        .addScaledVector(nHead.forward, 0.06);
+      this.rightCheek.quaternion.copy(nHead.quaternion);
+      this.rightCheek.rotateY(0.40);
 
-    this.rightBlush.position.copy(nEye.position)
-      .addScaledVector(nEye.side, -0.70)
-      .addScaledVector(nEye.up, 0.04);
-    this.rightBlush.quaternion.copy(nEye.quaternion);
-    this.rightBlush.rotateY(-Math.PI / 2 + 0.22);
+      this.leftCheek.position.copy(nHead.position)
+        .addScaledVector(nHead.side, -eyeDistX - 0.02)
+        .addScaledVector(nHead.up, -0.04)
+        .addScaledVector(nHead.forward, 0.06);
+      this.leftCheek.quaternion.copy(nHead.quaternion);
+      this.leftCheek.rotateY(-0.40);
+    }
 
-    // Bocca
-    this.mouthGroup.position.copy(nHead.position)
-      .addScaledVector(nHead.up, -0.16 - this.expression * 0.08)
-      .addScaledVector(nHead.forward, 0.18);
-    this.mouthGroup.quaternion.copy(nHead.quaternion);
-    this.mouthGroup.rotateX(0.25);
+    // Mascella ventrale a filo con il muso (sul nodo 1)
+    const nJaw = spineNodes[1];
+    this.mouthGroup.position.copy(nJaw.position)
+      .addScaledVector(nJaw.up, -0.13)
+      .addScaledVector(nJaw.forward, 0.03);
+    this.mouthGroup.quaternion.copy(nJaw.quaternion);
+    this.mouthGroup.rotateX(0.10);
   }
 }

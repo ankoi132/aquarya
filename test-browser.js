@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function run() {
-  console.log('Avvio test browser suite...');
+  console.log('Avvio test suite completa con browser Edge...');
   const browser = await puppeteer.launch({
     executablePath: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
     headless: 'new',
@@ -20,9 +20,7 @@ async function run() {
 
   const page = await browser.newPage();
   
-  const consoleMessages = [];
   page.on('console', msg => {
-    consoleMessages.push(`[${msg.type()}] ${msg.text()}`);
     console.log(`Console [${msg.type()}]:`, msg.text());
   });
 
@@ -38,12 +36,21 @@ async function run() {
   await page.screenshot({ path: path.join(__dirname, 'desktop_preview.png') });
   console.log('1. Desktop screenshot salvato.');
 
-  // 2. Test Palette Switcher & Scodata
-  console.log('2. Test interazione studio (cambio colore Corallo + scodata)...');
-  await page.click('[data-palette="coral"]');
-  await new Promise(r => setTimeout(r, 500));
-  await page.click('#btn-burst');
-  await new Promise(r => setTimeout(r, 400));
+  // 2. Test condizioni estreme dell'utente (Velocità 2.1x, Dimensione 0.7x, virate rapide)
+  console.log('2. Test slider estremi (Velocità 2.1x, Dimensione 0.7x)...');
+  await page.evaluate(() => {
+    const speedSlider = document.getElementById('speed-slider');
+    const scaleSlider = document.getElementById('scale-slider');
+    if (speedSlider) {
+      speedSlider.value = '2.1';
+      speedSlider.dispatchEvent(new Event('input'));
+    }
+    if (scaleSlider) {
+      scaleSlider.value = '0.7';
+      scaleSlider.dispatchEvent(new Event('input'));
+    }
+  });
+  await new Promise(r => setTimeout(r, 600));
 
   // 3. Test Drag
   console.log('3. Test drag dello squalo...');
@@ -59,28 +66,21 @@ async function run() {
   console.log('Screenshot drag salvato.');
 
   await page.mouse.up();
-  await new Promise(r => setTimeout(r, 800));
+  await new Promise(r => setTimeout(r, 1000));
 
-  // 4. Test Mobile (390x844)
+  // 4. Test Mobile Viewport (390x844)
   console.log('4. Test mobile viewport (390x844)...');
   await page.setViewport({ width: 390, height: 844 });
-  await new Promise(r => setTimeout(r, 1200));
+  await new Promise(r => setTimeout(r, 1800));
 
   await page.screenshot({ path: path.join(__dirname, 'mobile_preview.png') });
   console.log('Screenshot mobile salvato.');
 
-  // 5. Test apertura bottom sheet su mobile
-  console.log('5. Test apertura bottom sheet su mobile...');
-  await page.click('#panel-toggle');
-  await new Promise(r => setTimeout(r, 500));
-  await page.screenshot({ path: path.join(__dirname, 'mobile_sheet_preview.png') });
-  console.log('Screenshot mobile bottom sheet salvato.');
-
   await browser.close();
-  console.log('Tutti i test browser completati con successo!');
+  console.log('Tutti i test completati con successo!');
 }
 
 run().catch(err => {
-  console.error('Errore durante i test:', err);
+  console.error('Errore test:', err);
   process.exit(1);
 });

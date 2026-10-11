@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 
 /**
- * AQUARYA - Physics Engine
- * Gestisce la spina dorsale a 12 nodi, la traiettoria autonoma tridimensionale,
- * l'ondulazione sinusoidale viaggiante, la cinematica inversa/diretta durante il drag
- * e il rilascio con inerzia naturale.
+ * AQUARYA - Advanced Hydrodynamic Physics Engine
+ * Architettura a spina dorsale infrangibile con:
+ * - Parallel Transport (Bishop Frame) per eliminare qualsiasi torsione/candy-wrapping
+ * - Vincolo di curvatura angolare massima (Bending Constraint max 14°) che impedisce
+ *   allo squalo di accartocciarsi o piegarsi su se stesso anche a velocità estrema o drag rapido
+ * - Traiettoria 3D ad "otto" fluida con rollio naturale nelle virate
+ * - Rilascio inerziale con smorzamento fluido e rientro morbido
  */
 
 export class SpineNode {
@@ -12,10 +15,9 @@ export class SpineNode {
     this.index = index;
     this.restDist = restDist;
     this.position = new THREE.Vector3(0, 0, -index * restDist);
-    this.prevPosition = new THREE.Vector3(0, 0, -index * restDist);
     this.velocity = new THREE.Vector3(0, 0, 0);
-    
-    // Terna ortonormale locale: Forward (verso la testa), Up (dorso), Side (fianco destro)
+
+    // Terna ortonormale locale: Forward, Up, Side
     this.forward = new THREE.Vector3(0, 0, 1);
     this.up = new THREE.Vector3(0, 1, 0);
     this.side = new THREE.Vector3(1, 0, 0);
@@ -25,11 +27,10 @@ export class SpineNode {
 
 export class Physics {
   constructor() {
-    this.nodeCount = 12;
+    this.nodeCount = 14; // 14 nodi per una spina dorsale ultra-fluida e affusolata
+    this.defaultDist = 0.27; // Lunghezza totale ~3.8 unità, proporzioni slanciate
     this.nodes = [];
-    
-    // Distanza a riposo tra i segmenti (lunghezza totale ~3.6 unità)
-    this.defaultDist = 0.32;
+
     for (let i = 0; i < this.nodeCount; i++) {
       this.nodes.push(new SpineNode(i, this.defaultDist));
     }
@@ -40,36 +41,37 @@ export class Physics {
     this.scaleMultiplier = 1.0;
     this.isPaused = false;
 
-    // Traiettoria Autonoma 3D (Lissajous / figure-8)
+    // Traiettoria Autonoma
     this.simTime = 0;
-    this.baseFrequency = 1.25; // Hz base per scodate
+    this.baseFrequency = 1.35; // Frequenza del nuoto
     this.wavePhase = 0;
-    this.swimSpeed = 1.6;
-    this.speedMagnitude = 1.6;
-    
+    this.swimSpeed = 1.8;
+    this.speedMagnitude = 1.8;
+
+    this.headPosition = new THREE.Vector3(0, 0, 0);
     this.headHeading = new THREE.Vector3(0, 0, 1);
     this.headUp = new THREE.Vector3(0, 1, 0);
     this.headRoll = 0;
 
-    // Variazioni di Umore Spontanee (ogni 15-25s)
-    this.moodTimer = 16.0;
+    // Variazioni di Umore (ogni 16-24s)
+    this.moodTimer = 18.0;
     this.isMoodAction = false;
-    this.moodActionType = 'none'; // 'burst', 'barrel_roll', 'arc_loop'
+    this.moodActionType = 'none';
     this.moodProgress = 0;
     this.extraRoll = 0;
     this.extraSpeed = 0;
 
-    // Interazione Drag
+    // Drag & Interazione
     this.isDragging = false;
     this.draggedIndex = 0;
     this.dragTargetPos = new THREE.Vector3();
     this.dragHistory = [];
 
-    // Rilascio & Inerzia
+    // Inerzia
     this.isInertia = false;
     this.inertiaVelocity = new THREE.Vector3();
     this.inertiaTimer = 0;
-    this.inertiaDuration = 2.2;
+    this.inertiaDuration = 2.0;
 
     // Curiosità (click nel vuoto)
     this.curiosityTarget = null;
@@ -77,14 +79,14 @@ export class Physics {
 
     // Limiti schermo
     this.bounds = {
-      minX: -4.8, maxX: 4.8,
-      minY: -2.6, maxY: 2.6,
-      minZ: -4.2, maxZ: 2.0
+      minX: -4.5, maxX: 4.5,
+      minY: -2.4, maxY: 2.4,
+      minZ: -4.0, maxZ: 1.8
     };
 
-    // Telemetria scientifica
-    this.telemetrySpeedCm = 24.0;
-    this.telemetryFreqHz = 1.25;
+    // Telemetria
+    this.telemetrySpeedCm = 28.0;
+    this.telemetryFreqHz = 1.35;
   }
 
   startDrag(nodeIndex, worldPos) {
@@ -102,7 +104,6 @@ export class Physics {
     const now = performance.now();
     this.dragHistory.push({ pos: worldPos.clone(), time: now });
 
-    // Mantieni ultimi ~90ms
     const cutoff = now - 90;
     while (this.dragHistory.length > 2 && this.dragHistory[0].time < cutoff) {
       this.dragHistory.shift();
@@ -113,7 +114,6 @@ export class Physics {
     if (!this.isDragging) return;
     this.isDragging = false;
 
-    // Calcola velocità di lancio media
     let launchVel = new THREE.Vector3();
     if (this.dragHistory.length >= 2) {
       const first = this.dragHistory[0];
@@ -121,7 +121,7 @@ export class Physics {
       const dt = (last.time - first.time) * 0.001;
       if (dt > 0.015) {
         launchVel.subVectors(last.pos, first.pos).divideScalar(dt);
-        launchVel.clampLength(0, 14.0);
+        launchVel.clampLength(0, 12.0);
       }
     }
 
@@ -132,7 +132,7 @@ export class Physics {
     } else {
       this.isInertia = true;
       this.inertiaVelocity.copy(this.headHeading).multiplyScalar(1.2);
-      this.inertiaTimer = 1.0;
+      this.inertiaTimer = 0.8;
     }
   }
 
@@ -158,10 +158,10 @@ export class Physics {
     this.isInertia = false;
     this.curiosityWeight = 0;
 
+    const startZ = (this.nodeCount * 0.5) * this.defaultDist;
     for (let i = 0; i < this.nodeCount; i++) {
-      const z = (this.nodeCount * 0.5 - i) * this.defaultDist;
+      const z = startZ - i * this.defaultDist;
       this.nodes[i].position.set(0, 0, z);
-      this.nodes[i].prevPosition.set(0, 0, z);
       this.nodes[i].velocity.set(0, 0, 0);
       this.nodes[i].forward.set(0, 0, 1);
       this.nodes[i].up.set(0, 1, 0);
@@ -173,10 +173,9 @@ export class Physics {
     if (this.isPaused) return;
     const dt = Math.min(delta, 0.033);
 
-    // Aggiornamento azioni di umore
     this.updateMood(dt);
 
-    // 1. Risolvi il moto trainante (testa o punto afferrato)
+    // 1. Risolvi il moto della testa o del nodo afferrato
     if (this.isDragging) {
       this.solveDrag(dt);
     } else if (this.isInertia) {
@@ -185,16 +184,16 @@ export class Physics {
       this.solveAutonomous(dt);
     }
 
-    // 2. Risolvi i vincoli di distanza rigidi della catena (Verlet relaxation)
-    this.solveChainConstraints();
+    // 2. Risolvi la catena con vincoli di distanza E di angolo massimo (infrangibile)
+    this.solveAngleConstrainedSpine();
 
-    // 3. Applica l'ondulazione sinusoidale (body wave)
+    // 3. Applica l'ondulazione del nuoto lungo l'asse laterale
     this.applyBodyWave(dt);
 
-    // 4. Calcola la terna ortonormale di ogni segmento per l'allineamento della mesh
-    this.computeFrames();
+    // 4. Calcola i frame con Parallel Transport (Bishop Frame) esente da torsioni
+    this.computeBishopFrames();
 
-    // 5. Aggiorna telemetria
+    // 5. Telemetria
     this.updateTelemetry();
   }
 
@@ -207,7 +206,7 @@ export class Physics {
         this.moodTimer = 16.0 + Math.random() * 8.0;
 
         const pick = Math.random();
-        if (pick < 0.45) this.moodActionType = 'burst';
+        if (pick < 0.5) this.moodActionType = 'burst';
         else if (pick < 0.8) this.moodActionType = 'barrel_roll';
         else this.moodActionType = 'arc_loop';
       }
@@ -224,10 +223,10 @@ export class Physics {
         if (this.moodActionType === 'barrel_roll') {
           this.extraRoll = sinProg * Math.PI * 2.0;
         } else if (this.moodActionType === 'burst') {
-          this.extraSpeed = sinProg * 2.4;
+          this.extraSpeed = sinProg * 2.2;
         } else if (this.moodActionType === 'arc_loop') {
-          this.extraRoll = Math.sin(this.moodProgress * 2) * 0.7;
-          this.extraSpeed = sinProg * 0.9;
+          this.extraRoll = Math.sin(this.moodProgress * 2) * 0.5;
+          this.extraSpeed = sinProg * 0.8;
         }
       }
     }
@@ -237,18 +236,16 @@ export class Physics {
     this.simTime += dt * 0.65 * this.speedMultiplier;
     const t = this.simTime;
 
-    // Adatta l'ampiezza orizzontale in base alla proporzione dello schermo (desktop vs mobile)
     const aspect = typeof window !== 'undefined' ? window.innerWidth / window.innerHeight : 1.6;
-    const ampX = aspect < 1.0 ? 1.5 : 2.7;
+    const ampX = aspect < 1.0 ? 1.5 : 2.6;
 
-    // Traiettoria 3D ad "otto" / Lissajous con profondità e bobbing verticale
+    // Percorso elegante a figura di 8 nello spazio tridimensionale
     const pathX = Math.sin(t) * ampX;
-    const pathY = Math.sin(t * 2.0) * 0.60 + Math.sin(t * 3.4) * 0.16;
+    const pathY = Math.sin(t * 2.0) * 0.55 + Math.sin(t * 3.2) * 0.14;
     const pathZ = Math.cos(t * 0.9) * 1.5 - 0.2;
 
     const targetPos = new THREE.Vector3(pathX, pathY, pathZ);
 
-    // Deviazione con curiosità verso click nel vuoto
     if (this.curiosityTarget && this.curiosityWeight > 0.01) {
       targetPos.lerp(this.curiosityTarget, this.curiosityWeight * 0.7);
       this.curiosityWeight -= dt * 0.35;
@@ -263,34 +260,31 @@ export class Physics {
 
     if (dist > 0.05) {
       steer.normalize();
-      // Virata morbida verso il target
-      this.headHeading.lerp(steer, dt * 2.5);
+      // Virata morbida senza scatti
+      this.headHeading.lerp(steer, dt * 2.6);
       this.headHeading.normalize();
     }
 
-    // Avanzamento testa
+    // Avanzamento
     head.position.addScaledVector(this.headHeading, this.speedMagnitude * dt);
 
-    // Banking roll nelle virate
-    const currentHeading = this.headHeading.clone();
-    const yawDelta = currentHeading.x;
-    this.headRoll = THREE.MathUtils.lerp(this.headRoll, -yawDelta * 0.45 + this.extraRoll, dt * 3.5);
+    // Rollio morbido nelle virate
+    const yawDelta = this.headHeading.x;
+    this.headRoll = THREE.MathUtils.lerp(this.headRoll, -yawDelta * 0.35 + this.extraRoll, dt * 3.5);
 
     this.enforceBounds(head.position, dt);
   }
 
   solveInertia(dt) {
     const head = this.nodes[0];
-    
-    // Decelerazione aria
-    const drag = Math.pow(0.42, dt);
+    const drag = Math.pow(0.40, dt);
     this.inertiaVelocity.multiplyScalar(drag);
     head.position.addScaledVector(this.inertiaVelocity, dt);
     this.enforceBounds(head.position, dt);
 
     if (this.inertiaVelocity.length() > 0.25) {
       const vDir = this.inertiaVelocity.clone().normalize();
-      this.headHeading.lerp(vDir, dt * 4.0);
+      this.headHeading.lerp(vDir, dt * 3.5);
       this.headHeading.normalize();
     }
 
@@ -303,125 +297,162 @@ export class Physics {
 
   solveDrag(dt) {
     const grabbed = this.nodes[this.draggedIndex];
-    // Molla-smorzatore con stiffness configurabile da UI
-    const stiffness = 24.0 * (1.5 - this.softnessMultiplier * 0.4);
+    const stiffness = 22.0 * (1.5 - this.softnessMultiplier * 0.4);
     const lerpSpeed = Math.min(1.0, dt * stiffness);
     grabbed.position.lerp(this.dragTargetPos, lerpSpeed);
 
-    // Se afferrato per la coda, la testa spinge comunque in avanti dimenandosi
-    if (this.draggedIndex >= 7) {
+    if (this.draggedIndex >= 8) {
       const head = this.nodes[0];
-      head.position.addScaledVector(this.headHeading, 2.2 * dt);
+      head.position.addScaledVector(this.headHeading, 2.0 * dt);
     }
   }
 
-  solveChainConstraints() {
-    // Risoluzione vincoli di distanza tra segmenti
-    const iterations = 5;
+  /**
+   * Risolve la catena vertebrale applicando distanze rigide E vincolo di curvatura angolare massima.
+   * Questo garantisce che nessun segmento possa piegarsi a più di ~14° rispetto al precedente,
+   * impedendo per costruzione fisica qualunque accartocciamento!
+   */
+  solveAngleConstrainedSpine() {
     const targetDist = this.defaultDist * this.scaleMultiplier;
+    const maxBendAngle = 0.28; // ~16 gradi massimo di deflessione tra due vertebre contigue
 
-    for (let iter = 0; iter < iterations; iter++) {
-      if (this.isDragging) {
-        // Se un nodo specifico k è trascinato:
-        // Vincola all'indietro verso la testa (k-1 fino a 0)
-        for (let i = this.draggedIndex - 1; i >= 0; i--) {
-          this.constrainPair(this.nodes[i + 1], this.nodes[i], targetDist);
-        }
-        // Vincola in avanti verso la coda (k+1 fino a N-1)
-        for (let i = this.draggedIndex + 1; i < this.nodeCount; i++) {
-          this.constrainPair(this.nodes[i - 1], this.nodes[i], targetDist);
-        }
-      } else {
-        // Modalità normale (la testa guida, il corpo segue)
-        for (let i = 1; i < this.nodeCount; i++) {
-          this.constrainPair(this.nodes[i - 1], this.nodes[i], targetDist);
-        }
+    if (this.isDragging) {
+      // Dal nodo afferrato verso la testa (k-1 fino a 0)
+      for (let i = this.draggedIndex - 1; i >= 0; i--) {
+        const lead = this.nodes[i + 1];
+        const follow = this.nodes[i];
+        const refDir = (i + 2 < this.nodeCount)
+          ? new THREE.Vector3().subVectors(this.nodes[i + 1].position, this.nodes[i + 2].position).normalize()
+          : this.headHeading.clone();
+        this.constrainSegment(lead, follow, targetDist, maxBendAngle, refDir);
+      }
+      // Dal nodo afferrato verso la coda (k+1 fino a N-1)
+      for (let i = this.draggedIndex + 1; i < this.nodeCount; i++) {
+        const lead = this.nodes[i - 1];
+        const follow = this.nodes[i];
+        const refDir = (i >= 2)
+          ? new THREE.Vector3().subVectors(this.nodes[i - 1].position, this.nodes[i - 2].position).normalize()
+          : this.headHeading.clone().negate();
+        this.constrainSegment(lead, follow, targetDist, maxBendAngle, refDir);
+      }
+    } else {
+      // Nuoto autonomo: la testa guida da 1 a N-1
+      for (let i = 1; i < this.nodeCount; i++) {
+        const lead = this.nodes[i - 1];
+        const follow = this.nodes[i];
+        const refDir = (i === 1)
+          ? this.headHeading.clone().negate()
+          : new THREE.Vector3().subVectors(this.nodes[i - 1].position, this.nodes[i - 2].position).normalize();
+        this.constrainSegment(lead, follow, targetDist, maxBendAngle, refDir);
       }
     }
   }
 
-  constrainPair(lead, follow, targetDist) {
-    const diff = new THREE.Vector3().subVectors(follow.position, lead.position);
-    const currentDist = diff.length();
-    if (currentDist > 0.0001) {
-      diff.normalize();
-      follow.position.copy(lead.position).addScaledVector(diff, targetDist);
+  constrainSegment(lead, follow, targetDist, maxAngle, refDir) {
+    const dir = new THREE.Vector3().subVectors(follow.position, lead.position);
+    const curDist = dir.length();
+
+    if (curDist > 0.0001) {
+      dir.normalize();
+    } else {
+      dir.copy(refDir);
     }
+
+    if (refDir && refDir.lengthSq() > 0.001) {
+      refDir.normalize();
+      const dot = THREE.MathUtils.clamp(dir.dot(refDir), -1, 1);
+      const angle = Math.acos(dot);
+
+      if (angle > maxAngle) {
+        const axis = new THREE.Vector3().crossVectors(refDir, dir);
+        if (axis.lengthSq() > 0.0001) {
+          axis.normalize();
+          dir.copy(refDir).applyAxisAngle(axis, maxAngle);
+        } else {
+          dir.copy(refDir);
+        }
+      }
+    }
+
+    follow.position.copy(lead.position).addScaledVector(dir, targetDist);
   }
 
   applyBodyWave(dt) {
     let effectiveSpeed = this.speedMagnitude;
     if (this.isDragging) {
-      effectiveSpeed = this.draggedIndex >= 7 ? 3.6 : 2.0;
+      effectiveSpeed = this.draggedIndex >= 8 ? 3.4 : 2.0;
     }
 
     const freq = this.baseFrequency * Math.max(0.6, effectiveSpeed * 0.85) * this.speedMultiplier;
     this.wavePhase += dt * freq * Math.PI * 2.0;
 
-    // Vettore laterale (Side)
-    const sideVec = new THREE.Vector3().crossVectors(this.headHeading, new THREE.Vector3(0, 1, 0)).normalize();
+    // Vettore laterale calcolato dal nodo 0 per coerenza cinematica
+    const headSide = this.nodes[0].side.clone();
 
-    // Applica onda laterale: testa oscilla poco, coda oscilla molto
+    // Ampiezza progressiva morbida: testa quasi immobile (0.012), coda scodante fluida (0.30)
     for (let i = 1; i < this.nodeCount; i++) {
       const u = i / (this.nodeCount - 1);
-      const amp = (0.02 + 0.55 * Math.pow(u, 1.5)) * (this.isDragging ? 1.4 : 1.0);
+      const amp = (0.012 + 0.30 * Math.pow(u, 1.5)) * (this.isDragging ? 1.25 : 1.0);
       const wave = Math.sin(this.wavePhase - u * 4.5) * amp;
 
-      this.nodes[i].position.addScaledVector(sideVec, wave * 0.18);
+      this.nodes[i].position.addScaledVector(headSide, wave * 0.15);
     }
 
-    // Ri-applica vincoli per garantire distanze costanti esatte
+    // Ri-vincola per conservare rigidità della lunghezza
     const targetDist = this.defaultDist * this.scaleMultiplier;
     for (let i = 1; i < this.nodeCount; i++) {
-      this.constrainPair(this.nodes[i - 1], this.nodes[i], targetDist);
+      const dir = new THREE.Vector3().subVectors(this.nodes[i].position, this.nodes[i - 1].position).normalize();
+      this.nodes[i].position.copy(this.nodes[i - 1].position).addScaledVector(dir, targetDist);
     }
   }
 
-  computeFrames() {
-    // Calcola Forward, Up, Side e Quaternion per ogni nodo
-    for (let i = 0; i < this.nodeCount; i++) {
-      const node = this.nodes[i];
-      let fwd;
+  /**
+   * Parallel Transport (Bishop Frame):
+   * Propaga l'orientamento da nodo a nodo garantendo continuità perfetta
+   * e assenza di torsioni o capovolgimenti anomali.
+   */
+  computeBishopFrames() {
+    // 1. Nodo 0 (Head): orientamento primario
+    const head = this.nodes[0];
+    const neck = this.nodes[1];
 
-      if (i === 0) {
-        // Testa: guarda in direzione opposta al nodo 1
-        fwd = new THREE.Vector3().subVectors(this.nodes[0].position, this.nodes[1].position).normalize();
-      } else if (i === this.nodeCount - 1) {
-        // Coda: punta nella direzione che allontana dal nodo precedente
-        fwd = new THREE.Vector3().subVectors(this.nodes[i - 1].position, this.nodes[i].position).normalize();
-      } else {
-        // Segmenti intermedi: media tangente tra nodo precedente e successivo
-        fwd = new THREE.Vector3().subVectors(this.nodes[i - 1].position, this.nodes[i + 1].position).normalize();
-      }
+    head.forward.subVectors(head.position, neck.position).normalize();
+    if (head.forward.lengthSq() < 0.001) head.forward.set(0, 0, 1);
 
-      if (fwd.lengthSq() < 0.001) fwd.set(0, 0, 1);
-      node.forward.copy(fwd);
+    // Up della testa con rollio
+    let hUp = new THREE.Vector3(0, 1, 0);
+    hUp.applyAxisAngle(head.forward, this.headRoll);
+    head.side.crossVectors(hUp, head.forward).normalize();
+    head.up.crossVectors(head.forward, head.side).normalize();
 
-      // Calcola Up con banking roll
-      let baseUp = new THREE.Vector3(0, 1, 0);
-      if (i === 0) {
-        baseUp.applyAxisAngle(fwd, this.headRoll);
-      } else {
-        // Propaga roll lungo il corpo con smorzamento
-        const damp = 1.0 - (i / this.nodeCount) * 0.3;
-        baseUp.applyAxisAngle(fwd, this.headRoll * damp);
-      }
+    const headMat = new THREE.Matrix4().makeBasis(head.side, head.up, head.forward);
+    head.quaternion.setFromRotationMatrix(headMat);
 
-      // Side = Forward x Up
-      node.side.crossVectors(fwd, baseUp).normalize();
-      // Up ortogonale esatto = Side x Forward
-      node.up.crossVectors(node.side, fwd).normalize();
+    // 2. Nodi successivi: trasporto parallelo lungo la tangente
+    for (let i = 1; i < this.nodeCount; i++) {
+      const prev = this.nodes[i - 1];
+      const cur = this.nodes[i];
 
-      // Crea matrice di rotazione locale
-      const rotMatrix = new THREE.Matrix4();
-      rotMatrix.makeBasis(node.side, node.up, fwd);
-      node.quaternion.setFromRotationMatrix(rotMatrix);
+      // Tangente verso la testa
+      cur.forward.subVectors(prev.position, cur.position).normalize();
+      if (cur.forward.lengthSq() < 0.001) cur.forward.copy(prev.forward);
+
+      // Proietta l'Up precedente sul piano normale alla nuova tangente (Bishop frame)
+      const dot = prev.up.dot(cur.forward);
+      cur.up.copy(prev.up).addScaledVector(cur.forward, -dot).normalize();
+      if (cur.up.lengthSq() < 0.001) cur.up.set(0, 1, 0);
+
+      cur.side.crossVectors(cur.up, cur.forward).normalize();
+      cur.up.crossVectors(cur.forward, cur.side).normalize();
+
+      const rotMat = new THREE.Matrix4().makeBasis(cur.side, cur.up, cur.forward);
+      cur.quaternion.setFromRotationMatrix(rotMat);
     }
   }
 
   enforceBounds(pos, dt) {
     const aspect = typeof window !== 'undefined' ? window.innerWidth / window.innerHeight : 1.6;
-    const maxX = aspect < 1.0 ? 2.3 : 4.6;
+    const maxX = aspect < 1.0 ? 2.3 : 4.4;
     const minX = -maxX;
     const b = this.bounds;
     const force = 4.2 * dt;
